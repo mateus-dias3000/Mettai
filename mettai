@@ -1,0 +1,67 @@
+# app.py
+from flask import Flask, render_template_string, request, redirect, url_for, session
+from werkzeug.security import generate_password_hash, check_password_hash
+import openai
+import os
+
+app = Flask(__name__)
+app.secret_key = os.getenv("SECRET_KEY", "1cf3295586616496367ab359c9e8ffd1")
+openai.api_key = os.getenv("OPENAI_API_KEY", "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")
+
+usuarios = {}
+
+html_login = """<!DOCTYPE html><html lang='pt-br'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>Mettai - Login</title><script src='https://cdn.tailwindcss.com'></script></head><body class='bg-black text-white flex items-center justify-center min-h-screen font-sans'><div class='bg-gray-900 p-10 rounded-2xl w-full max-w-md shadow-2xl text-center'><h1 class='text-4xl font-bold text-indigo-400 mb-4'>Mettai</h1><p class='text-gray-400 mb-6'>Sua IA personalizada para você!</p>{% if erro %}<p class='text-red-400 text-sm mb-4'>{{ erro }}</p>{% endif %}<form method='POST' class='space-y-4'><input name='email' type='email' required placeholder='Email' class='w-full p-3 rounded bg-gray-800 placeholder-gray-400 focus:outline-none'><input name='senha' type='password' required placeholder='Senha' class='w-full p-3 rounded bg-gray-800 placeholder-gray-400 focus:outline-none'><select name='plano' required class='w-full p-3 rounded bg-gray-800 text-white focus:outline-none'><option value=''>Selecione um Plano</option><option value='gratuito'>Gratuito (GPT-3 + Web)</option><option value='pago'>Pago (GPT-4 Mini)</option><option value='empresa'>Empresa (GPT-4.5)</option><option value='desenvolvedor'>Desenvolvedor (GPT-4 Mini-High)</option><option value='plus'>Plus (Todos os recursos)</option></select><button type='submit' class='w-full bg-indigo-600 hover:bg-indigo-700 p-3 rounded font-bold'>Entrar</button></form><p class='text-gray-500 text-xs mt-6'>Cobrança: <span class='text-indigo-300'>mateustristaodias@gmail.com</span></p></div></body></html>"""
+
+html_dashboard = """<!DOCTYPE html><html lang='pt-br'><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>Mettai - Painel</title><script src='https://cdn.tailwindcss.com'></script><script>function loading(){document.getElementById('resposta').innerHTML='<div class=\'text-indigo-400 animate-pulse\'>Mettai está pensando...</div>';}</script></head><body class='bg-black text-white min-h-screen flex items-center justify-center p-6 font-sans'><div class='bg-gray-900 p-8 rounded-xl w-full max-w-2xl text-center shadow-xl'><h1 class='text-3xl font-bold text-indigo-400 mb-2'>Olá, {{ email }}</h1><p class='text-gray-400 mb-6'>Seu plano: <span class='text-green-400 font-semibold'>{{ plano }}</span></p><form method='POST' onsubmit='loading()' class='space-y-4'><input name='mensagem' type='text' required placeholder='Pergunte algo...' class='w-full p-3 rounded bg-gray-800 placeholder-gray-400 focus:outline-none'><div class='flex space-x-4'><button type='submit' class='flex-1 bg-indigo-600 hover:bg-indigo-700 p-3 rounded font-bold'>Perguntar</button><a href='/dashboard' class='flex-1 bg-gray-700 hover:bg-gray-600 p-3 rounded font-bold text-center'>Nova conversa</a></div></form><div id='resposta' class='mt-6 text-left'>{% if resposta %}<div class='bg-gray-800 p-4 rounded'><h2 class='text-indigo-300 font-bold mb-2'>Resposta da IA:</h2><p>{{ resposta }}</p></div>{% endif %}</div><div class='mt-6'><a href='/' class='text-red-400 hover:text-red-500'>Sair</a></div></div></body></html>"""
+
+html_404 = """<!DOCTYPE html><html><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>Erro 404</title><script src='https://cdn.tailwindcss.com'></script></head><body class='bg-black text-white flex items-center justify-center min-h-screen font-sans'><div class='text-center'><h1 class='text-6xl text-indigo-400 font-bold mb-4'>404</h1><p class='text-gray-400 mb-6'>Página não encontrada.</p><a href='/' class='bg-indigo-600 hover:bg-indigo-700 p-3 rounded font-bold'>Voltar</a></div></body></html>"""
+
+html_500 = """<!DOCTYPE html><html><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1.0'><title>Erro 500</title><script src='https://cdn.tailwindcss.com'></script></head><body class='bg-black text-white flex items-center justify-center min-h-screen font-sans'><div class='text-center'><h1 class='text-6xl text-red-500 font-bold mb-4'>Erro</h1><p class='text-gray-400 mb-6'>Erro interno. Tente novamente mais tarde.</p><a href='/' class='bg-indigo-600 hover:bg-indigo-700 p-3 rounded font-bold'>Voltar</a></div></body></html>"""
+
+@app.route('/', methods=['GET', 'POST'])
+def login():
+    erro = None
+    if request.method == 'POST':
+        email = request.form.get('email')
+        senha = request.form.get('senha')
+        plano = request.form.get('plano')
+        if not email or not senha or not plano:
+            erro = "Todos os campos são obrigatórios."
+        else:
+            usuarios[email] = {'senha': generate_password_hash(senha), 'plano': plano}
+            session['usuario'] = email
+            return redirect(url_for('dashboard'))
+    return render_template_string(html_login, erro=erro)
+
+@app.route('/dashboard', methods=['GET', 'POST'])
+def dashboard():
+    if 'usuario' not in session:
+        return redirect(url_for('login'))
+    email = session['usuario']
+    plano = usuarios[email]['plano']
+    resposta = None
+    if request.method == 'POST':
+        pergunta = request.form['mensagem']
+        try:
+            chat = openai.ChatCompletion.create(
+                model='gpt-4o',
+                messages=[
+                    {"role": "system", "content": "Você é a IA Mettai, objetiva, prestativa e educada."},
+                    {"role": "user", "content": pergunta}
+                ]
+            )
+            resposta = chat.choices[0].message.content
+        except:
+            resposta = "Erro ao se comunicar com a IA."
+    return render_template_string(html_dashboard, email=email, plano=plano, resposta=resposta)
+
+@app.errorhandler(404)
+def not_found(e):
+    return render_template_string(html_404), 404
+
+@app.errorhandler(500)
+def internal_error(e):
+    return render_template_string(html_500), 500
+
+if __name__ == '__main__':
+    app.run(debug=True)
