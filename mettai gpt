@@ -1,0 +1,307 @@
+import React, { useMemo, useState } from "react";
+
+// Landing page única para www.mettai.com.br
+// - Tailwind para estilo (pré‑carregado no Canvas)
+// - Cartões de planos com regras de preço baseadas nos modelos
+// - Calculadora interativa: informe os preços-base por 1K tokens e veja o preço de cada plano
+// - Seções rápidas de FAQ e de registro de domínio/deploy
+
+export default function MettaiLanding() {
+  const [base4o, setBase4o] = useState("");      // preço por 1K tokens do GPT‑4o
+  const [base41, setBase41] = useState("");      // preço por 1K tokens do GPT‑4.1 (apenas informativo)
+  const [base5, setBase5] = useState("");        // preço por 1K tokens do GPT‑5
+  const [base5t, setBase5t] = useState("");      // preço por 1K tokens do GPT‑5 Thinking
+  const [moeda, setMoeda] = useState("BRL");     // BRL ou USD
+
+  const fmt = (v) => {
+    if (v == null || Number.isNaN(v)) return "—";
+    try {
+      return new Intl.NumberFormat("pt-BR", {
+        style: "currency",
+        currency: moeda === "USD" ? "USD" : "BRL",
+        maximumFractionDigits: 4,
+      }).format(v);
+    } catch {
+      return v.toFixed?.(4) ?? String(v);
+    }
+  };
+
+  const num = (x) => {
+    const n = parseFloat(String(x).replace(",", "."));
+    return Number.isFinite(n) ? n : NaN;
+  };
+
+  const entradas = useMemo(() => ({
+    base4o: num(base4o),
+    base41: num(base41),
+    base5: num(base5),
+    base5t: num(base5t),
+  }), [base4o, base41, base5, base5t]);
+
+  const planos = [
+    {
+      id: "free",
+      nome: "Gratuito",
+      destaque: "Para começar sem custo",
+      descricao:
+        "Usa o GPT com o pior raciocínio (modelo básico). Ideal para testes iniciais e uso leve.",
+      modelos: ["Modelo básico"],
+      preco: () => 0,
+      depende: [],
+      badge: "R$ 0",
+    },
+    {
+      id: "pago",
+      nome: "Pago",
+      destaque: "4o com +20%",
+      descricao:
+        "Usa o GPT‑4o e custa 20% mais caro que o GPT‑4o por token.",
+      modelos: ["GPT‑4o"],
+      preco: (e) => e.base4o * 1.2,
+      depende: ["base4o"],
+      badge: "+20% 4o",
+    },
+    {
+      id: "empresa",
+      nome: "Empresa",
+      destaque: "4o + 4.1 (+50% sobre 4o)",
+      descricao:
+        "Usa o GPT‑4o e o GPT‑4.1 e custa 50% mais caro que o GPT‑4o por token.",
+      modelos: ["GPT‑4o", "GPT‑4.1"],
+      preco: (e) => e.base4o * 1.5,
+      depende: ["base4o"],
+      badge: "+50% 4o",
+    },
+    {
+      id: "plus",
+      nome: "Plus",
+      destaque: "4o + 4.1 + 5 (+10% sobre 5)",
+      descricao:
+        "Usa o GPT‑4o, GPT‑4.1 e GPT‑5 e custa 10% mais caro que o GPT‑5 por token.",
+      modelos: ["GPT‑4o", "GPT‑4.1", "GPT‑5"],
+      preco: (e) => e.base5 * 1.1,
+      depende: ["base5"],
+      badge: "+10% 5",
+    },
+    {
+      id: "pro",
+      nome: "Pro",
+      destaque: "Tudo do PLUS + 5 Thinking (+10%)",
+      descricao:
+        "Acesso a todos os GPTs do plano PLUS da OpenAI e custa 10% mais caro que o GPT‑5 Thinking por token.",
+      modelos: ["Todos do PLUS", "GPT‑5 Thinking"],
+      preco: (e) => e.base5t * 1.1,
+      depende: ["base5t"],
+      badge: "+10% 5 Thinking",
+    },
+  ];
+
+  const Card = ({ plano }) => {
+    const temEntradas = plano.depende.every((k) => Number.isFinite(entradas[k]));
+    const valor = temEntradas || plano.depende.length === 0 ? plano.preco(entradas) : NaN;
+
+    return (
+      <div className="group flex flex-col rounded-2xl border border-white/10 bg-white/5 p-6 shadow-xl backdrop-blur-sm hover:bg-white/10 transition">
+        <div className="mb-2 flex items-center gap-2">
+          <span className="inline-flex items-center rounded-full bg-white/10 px-3 py-1 text-xs font-semibold">{plano.badge}</span>
+        </div>
+        <h3 className="text-xl font-bold tracking-tight">{plano.nome}</h3>
+        <p className="text-sm text-white/80 mt-1">{plano.destaque}</p>
+        <div className="mt-4 text-3xl font-extrabold tracking-tight">
+          {fmt(valor)} <span className="text-base font-semibold text-white/70">/ 1K tokens</span>
+        </div>
+        <ul className="mt-4 text-sm text-white/90 space-y-1">
+          <li>• {plano.descricao}</li>
+          <li>• Modelos: <span className="font-semibold">{plano.modelos.join(", ")}</span></li>
+        </ul>
+        <button
+          className="mt-6 w-full rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-semibold hover:bg-white/20 active:scale-[.99]"
+          onClick={() => alert(`Assinatura: ${plano.nome} — fluxo de checkout a implementar`)}
+        >
+          Assinar {plano.nome}
+        </button>
+      </div>
+    );
+  };
+
+  const PriceInput = ({ label, value, onChange, placeholder }) => (
+    <label className="flex flex-col gap-1">
+      <span className="text-sm font-medium text-white/90">{label}</span>
+      <input
+        inputMode="decimal"
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="rounded-xl border border-white/20 bg-white/10 px-3 py-2 outline-none focus:ring-2 focus:ring-white/40"
+      />
+      <span className="text-xs text-white/70">Preço-base por 1K tokens</span>
+    </label>
+  );
+
+  return (
+    <main className="min-h-screen text-white bg-gradient-to-b from-indigo-950 via-indigo-900 to-indigo-950">
+      {/* NAV */}
+      <header className="sticky top-0 z-10 backdrop-blur border-b border-white/10 bg-indigo-950/50">
+        <div className="mx-auto max-w-7xl px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-2xl bg-white/10 grid place-items-center text-lg font-black">M</div>
+            <div>
+              <div className="text-lg font-extrabold leading-none">Mettai</div>
+              <div className="text-xs text-white/70 leading-none">www.mettai.com.br</div>
+            </div>
+          </div>
+          <nav className="hidden md:flex items-center gap-6 text-sm">
+            <a href="#planos" className="hover:underline">Planos</a>
+            <a href="#calculadora" className="hover:underline">Calculadora</a>
+            <a href="#registro" className="hover:underline">Registro & Deploy</a>
+            <a href="#faq" className="hover:underline">FAQ</a>
+          </nav>
+          <button className="rounded-xl bg-white text-indigo-900 font-semibold px-4 py-2">Entrar</button>
+        </div>
+      </header>
+
+      {/* HERO */}
+      <section className="mx-auto max-w-7xl px-4 py-16 grid md:grid-cols-2 gap-10 items-center">
+        <div>
+          <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight leading-tight">
+            Mettai: IA pronta para o seu negócio
+          </h1>
+          <p className="mt-4 text-lg text-white/90">
+            Escolha o plano ideal e pague de forma transparente, com regras claras por token — já preparadas para GPT‑4o, GPT‑4.1, GPT‑5 e GPT‑5 Thinking.
+          </p>
+          <div className="mt-6 flex gap-3">
+            <a href="#planos" className="rounded-2xl bg-white text-indigo-900 font-bold px-5 py-3">Ver Planos</a>
+            <a href="#registro" className="rounded-2xl border border-white/40 px-5 py-3 font-semibold">Registrar domínio</a>
+          </div>
+          <div className="mt-6 text-sm text-white/70">
+            * Os nomes e preços dos modelos podem variar ou exigir habilitação específica. Ajuste os valores-base para refletir sua negociação com o provedor.
+          </div>
+        </div>
+        <div className="rounded-3xl bg-white/5 border border-white/10 p-6 shadow-2xl">
+          <div className="text-sm text-white/70">Domínio oficial</div>
+          <div className="mt-1 text-2xl font-extrabold tracking-tight">www.mettai.com.br</div>
+          <div className="mt-4 grid grid-cols-3 gap-3 text-center">
+            {[
+              { t: "99.9%", d: "Uptime alvo" },
+              { t: "<100ms", d: "Latência Brasil" },
+              { t: "LGPD", d: "Pronto p/ compliance" },
+            ].map((k) => (
+              <div key={k.d} className="rounded-2xl bg-white/5 border border-white/10 p-4">
+                <div className="text-xl font-extrabold">{k.t}</div>
+                <div className="text-xs text-white/80">{k.d}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CALCULADORA */}
+      <section id="calculadora" className="mx-auto max-w-7xl px-4 py-12">
+        <div className="flex items-end justify-between mb-6">
+          <h2 className="text-2xl md:text-3xl font-extrabold">Calculadora de preço (por 1K tokens)</h2>
+          <div className="flex items-center gap-2 text-sm">
+            <span>Moeda:</span>
+            <select
+              className="rounded-lg bg-white/10 border border-white/20 px-2 py-1"
+              value={moeda}
+              onChange={(e) => setMoeda(e.target.value)}
+            >
+              <option value="BRL">BRL (R$)</option>
+              <option value="USD">USD ($)</option>
+            </select>
+          </div>
+        </div>
+        <div className="grid md:grid-cols-4 gap-4">
+          <PriceInput label="GPT‑4o" value={base4o} onChange={setBase4o} placeholder="ex: 0,3500" />
+          <PriceInput label="GPT‑4.1" value={base41} onChange={setBase41} placeholder="opcional" />
+          <PriceInput label="GPT‑5" value={base5} onChange={setBase5} placeholder="ex: 0,9000" />
+          <PriceInput label="GPT‑5 Thinking" value={base5t} onChange={setBase5t} placeholder="ex: 1,2000" />
+        </div>
+        <div className="mt-3 text-xs text-white/70">
+          Dica: cole o preço acordado com o provedor (por 1K tokens, entrada+saída). Os cartões abaixo calculam automaticamente.
+        </div>
+      </section>
+
+      {/* PLANOS */}
+      <section id="planos" className="mx-auto max-w-7xl px-4 py-12">
+        <h2 className="text-2xl md:text-3xl font-extrabold">Planos e regras por token</h2>
+        <p className="text-white/80 mt-2">Transparência total: cada plano referencia diretamente o preço-base do modelo indicado.</p>
+        <div className="mt-8 grid md:grid-cols-3 lg:grid-cols-5 gap-4">
+          {planos.map((pl) => (
+            <Card key={pl.id} plano={pl} />
+          ))}
+        </div>
+      </section>
+
+      {/* REGISTRO & DEPLOY */}
+      <section id="registro" className="mx-auto max-w-7xl px-4 py-12">
+        <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
+          <h2 className="text-2xl md:text-3xl font-extrabold">Registro de domínio & Deploy</h2>
+          <ol className="mt-4 space-y-3 text-white/90 list-decimal list-inside">
+            <li>
+              Verifique e registre <span className="font-semibold">mettai.com.br</span> em <a className="underline" href="https://registro.br/" target="_blank" rel="noreferrer">Registro.br</a>.
+            </li>
+            <li>
+              Faça o deploy deste site em um host estático (ex.: <a className="underline" href="https://vercel.com/" target="_blank" rel="noreferrer">Vercel</a> / <a className="underline" href="https://netlify.com/" target="_blank" rel="noreferrer">Netlify</a>).
+            </li>
+            <li>
+              No provedor do domínio, aponte DNS (registros A/AAAA ou CNAME) para o host. Habilite SSL automático.
+            </li>
+            <li>
+              Configure e‑mail (opcional) via provedor (ex.: Google Workspace) para @mettai.com.br.
+            </li>
+          </ol>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <a className="rounded-2xl bg-white text-indigo-900 font-bold px-5 py-3" href="https://registro.br/" target="_blank" rel="noreferrer">Registrar no Registro.br</a>
+            <a className="rounded-2xl border border-white/40 px-5 py-3 font-semibold" href="https://vercel.com/new" target="_blank" rel="noreferrer">Deploy na Vercel</a>
+          </div>
+          <p className="mt-4 text-xs text-white/70">
+            Observação: disponibilidade e preços dos modelos variam com a OpenAI. Este site não consulta a API; é apenas a camada comercial/visual.
+          </p>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section id="faq" className="mx-auto max-w-7xl px-4 py-12">
+        <h2 className="text-2xl md:text-3xl font-extrabold">FAQ</h2>
+        <div className="mt-6 grid md:grid-cols-2 gap-6">
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+            <h3 className="font-bold text-lg">Como funcionam os preços por token?</h3>
+            <p className="text-white/90 mt-2 text-sm">
+              Você define o preço-base por 1K tokens para cada modelo. Os planos apenas aplicam os percentuais informados (ex.: Pago = 4o × 1,20; Plus = 5 × 1,10; Pro = 5 Thinking × 1,10).
+            </p>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+            <h3 className="font-bold text-lg">Posso integrar autenticação e cobrança?</h3>
+            <p className="text-white/90 mt-2 text-sm">
+              Sim. Adicione OAuth (Google/Microsoft), Stripe/Mercado Pago e um backend para gerar chaves de uso e contabilizar tokens. Este arquivo é a base do front.
+            </p>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+            <h3 className="font-bold text-lg">O plano Gratuito tem limites?</h3>
+            <p className="text-white/90 mt-2 text-sm">
+              Recomenda‑se impor cotas diárias/mensais e fila de execução. O preço mostrado é R$ 0,00/1K tokens apenas como referência visual.
+            </p>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+            <h3 className="font-bold text-lg">E se algum modelo não estiver disponível?</h3>
+            <p className="text-white/90 mt-2 text-sm">
+              Basta ocultar o cartão ou ajustar a descrição. Os nomes são placeholders comerciais; confirme disponibilidade/termos com o provedor.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <footer className="border-t border-white/10">
+        <div className="mx-auto max-w-7xl px-4 py-8 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-white/70">
+          <div>© {new Date().getFullYear()} Mettai — Todos os direitos reservados.</div>
+          <div className="flex items-center gap-4">
+            <a href="#" className="hover:underline">Termos</a>
+            <a href="#" className="hover:underline">Privacidade</a>
+            <a href="#" className="hover:underline">Contato</a>
+          </div>
+        </div>
+      </footer>
+    </main>
+  );
+}
